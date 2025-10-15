@@ -139,14 +139,18 @@ with tab1:
 with tab2:
     # --- Resumo detalhado dos pedidos ---
     st.subheader("📝 Tabela de Pedidos")
-    tabela_resumo = df_filtrado[[
-        df.columns[0],  # Número do pedido
-        "data_envio",
-        "data_entrega",
-        "dias_entrega",
-        "estado",
-        "cidade",
-        "Status"
-    ]].sort_values("data_envio")
+    
+    # Gera link clicável da J&T Express se houver código de rastreio
+    def gerar_link_jt(codigo):
+        if pd.isna(codigo) or codigo == "":
+            return ""
+        return f"https://www.jtexpress.com.br/rastreamento/?codigo={codigo}"
+
+    tabela_resumo = df_filtrado[[df.columns[0], "data_envio", "data_entrega", "dias_entrega",
+                                 "estado", "cidade", "Status", "codigo_rastreio"]].sort_values("data_envio")
     tabela_resumo = tabela_resumo.rename(columns={df.columns[0]: "Número do Pedido"})
+    
+    # Coluna de link
+    tabela_resumo["Link J&T"] = tabela_resumo["codigo_rastreio"].apply(gerar_link_jt)
+    
     st.dataframe(tabela_resumo)
