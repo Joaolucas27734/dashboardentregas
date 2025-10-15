@@ -152,7 +152,21 @@ with tab4:
     if "df_estoque" not in st.session_state:
         st.session_state.df_estoque = pd.DataFrame(columns=["Produto", "SKU", "Quantidade", "Estoque Mínimo"])
 
-    df_estoque = st.session_state.df_estoque
+    df_estoque = st.session_state.df_estoque.copy()
+
+    # --- Atualizar estoque com base nos pedidos enviados ---
+    if not df_valid.empty:
+        # Supondo que a coluna F seja Produto e G seja Quantidade enviada
+        for _, row in df_valid.iterrows():
+            produto_pedido = str(row.iloc[5])  # Nome do produto ou SKU
+            quantidade_enviada = row.iloc[6]   # Quantidade enviada
+
+            if produto_pedido in df_estoque["Produto"].values:
+                df_estoque.loc[df_estoque["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
+
+        # Evitar valores negativos
+        df_estoque["Quantidade"] = df_estoque["Quantidade"].clip(lower=0)
+        st.session_state.df_estoque = df_estoque
 
     # --- Expander para adicionar/atualizar produto ---
     with st.expander("➕ Adicionar / Atualizar Produto", expanded=False):
