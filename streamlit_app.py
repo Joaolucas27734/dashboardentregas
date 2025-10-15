@@ -170,6 +170,10 @@ with tab4:
     # --- Calcular estoque atual subtraindo o que já foi gasto ---
     df_estoque["Quantidade_Atual"] = (df_estoque["Quantidade"] - df_estoque["Ja Gasto"]).clip(lower=0)
 
+    # --- Calcular pacotes completos de 20 peças restantes ---
+    import math
+    df_estoque["Pacotes (20 peças)"] = df_estoque["Quantidade_Atual"].apply(lambda x: math.floor(x / 20))
+
     # --- Persistir alterações no session_state ---
     st.session_state.df_estoque_atual = df_estoque.copy()
     df_estoque_atual = st.session_state.df_estoque_atual.copy()
@@ -182,7 +186,7 @@ with tab4:
 
     # --- Tabela completa de estoque ---
     st.subheader("📝 Estoque Atual")
-    st.dataframe(df_estoque_atual[["Produto", "Quantidade", "Ja Gasto", "Quantidade_Atual", "Estoque Mínimo"]])
+    st.dataframe(df_estoque_atual[["Produto", "Quantidade", "Ja Gasto", "Quantidade_Atual", "Pacotes (20 peças)", "Estoque Mínimo"]])
 
     # --- Gráfico de barras quantidade vs estoque mínimo ---
     st.subheader("📊 Estoque Atual x Estoque Mínimo")
