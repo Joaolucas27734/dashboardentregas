@@ -23,9 +23,8 @@ df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
 # --- Status de entrega ---
 df["Status"] = df["data_entrega"].apply(lambda x: "Entregue" if pd.notna(x) else "Não entregue")
 
-# --- Garante que a coluna 'codigo_rastreio' exista ---
-if "codigo_rastreio" not in df.columns:
-    df["codigo_rastreio"] = ""
+# --- Coluna de código de rastreio (coluna F) ---
+df["codigo_rastreio"] = df.iloc[:,5].astype(str)
 
 # --- Filtro por data ---
 st.sidebar.subheader("📅 Filtrar por Data de Envio")
