@@ -20,11 +20,9 @@ df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 df["estado"] = df.iloc[:,3].str.upper()  # coluna D
 df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
 
-# --- Filtrar dados válidos ---
+# --- Métricas principais ---
 df_valid = df.dropna(subset=["dias_entrega"])
 total = len(df_valid)
-
-# --- Métricas principais ---
 media = df_valid["dias_entrega"].mean() if total>0 else 0
 mediana = df_valid["dias_entrega"].median() if total>0 else 0
 pct_ate3 = (df_valid["dias_entrega"]<=3).sum()/total*100 if total>0 else 0
@@ -62,7 +60,7 @@ fig_map = px.choropleth_mapbox(
 st.plotly_chart(fig_map, use_container_width=True)
 
 # --- Dropdown para selecionar estado ---
-st.subheader("📈 Gráfico de Entregas por Estado / Cidade")
+st.subheader("📈 Gráfico de Entregas por Cidade")
 estados = sorted(df_valid["estado"].unique())
 estado_sel = st.selectbox("Selecione um estado para ver as cidades", ["Todos"] + estados)
 
@@ -81,29 +79,24 @@ if estado_sel == "Todos":
 else:
     # Filtrar cidades do estado selecionado
     df_cidades = df_valid[df_valid["estado"]==estado_sel]
-    
-    # Boxplot por cidade mostrando distribuição de dias de entrega
-    fig_cidade = px.box(
-        df_cidades,
+    resumo_cidade = df_cidades.groupby("cidade")["dias_entrega"].agg([
+        ("Total Pedidos","count"),
+        ("% Entregas ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
+    ]).reset_index()
+
+    fig_cidade = px.bar(
+        resumo_cidade,
         x="cidade",
-        y="dias_entrega",
-        points="all",
-        color="cidade",
-        title=f"Distribuição de Dias de Entrega por Cidade - {estado_sel}",
-        labels={"dias_entrega":"Dias de Entrega", "cidade":"Cidade"}
+        y="% Entregas ≤3 dias",
+        hover_data=["Total Pedidos"],
+        color="% Entregas ≤3 dias",
+        color_continuous_scale="Greens",
+        title=f"Entregas ≤3 dias por Cidade - {estado_sel}"
     )
     st.plotly_chart(fig_cidade, use_container_width=True)
 
-    # Média e mediana por cidade
-    resumo_cidade = df_cidades.groupby("cidade")["dias_entrega"].agg([
-        ("Total Pedidos","count"),
-        ("Média Dias","mean"),
-        ("Mediana Dias","median")
-    ]).reset_index()
-    st.dataframe(resumo_cidade)
-
 # --- Histograma de dias de entrega ---
-st.subheader("📊 Distribuição Geral de Dias de Entrega")
+st.subheader("📊 Distribuição de Dias de Entrega")
 freq = df_valid["dias_entrega"].value_counts().sort_index()
 st.bar_chart(freq)
 
@@ -116,6 +109,5 @@ st.markdown("""
 - **% Atrasos >5 dias**: alertas de atraso
 - **Mapa do Brasil**: verde = entregas rápidas
 - **Dropdown de Estado**: filtra cidades de cada estado
-- **Boxplot por cidade**: mostra mínimo, máximo, mediana e outliers
-- **Histograma**: distribuição de dias de entrega geral
+- **Histograma**: distribuição de dias de entrega
 """)
