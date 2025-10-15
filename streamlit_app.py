@@ -164,10 +164,10 @@ with tab4:
     df_estoque["Quantidade"] = pd.to_numeric(df_estoque["Quantidade"], errors="coerce").fillna(0)
     df_estoque["Estoque Mínimo"] = pd.to_numeric(df_estoque["Estoque Mínimo"], errors="coerce").fillna(0)
 
-    # --- Atualizar estoque com base nos pedidos enviados (coluna G da Página1) ---
+    # --- Atualizar estoque com base nos pedidos enviados (coluna G = quantidade, coluna H = produto) ---
     if not df_valid.empty and not df_estoque.empty:
         for _, row in df_valid.iterrows():
-            produto_pedido = str(row.iloc[5])  # Coluna F da Página1 = Produto
+            produto_pedido = str(row.iloc[7])  # Coluna H da Página1 = Produto
             quantidade_enviada = row.iloc[6]   # Coluna G da Página1 = Quantidade enviada
 
             if produto_pedido in df_estoque["Produto"].values:
