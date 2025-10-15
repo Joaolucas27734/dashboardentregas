@@ -68,13 +68,15 @@ st.bar_chart(freq)
 
 # --- Mapa do Brasil interativo ---
 st.subheader("🌎 Mapa de Entregas por Estado (% ≤3 dias)")
-# cria dataframe para o mapa
+
+# Adiciona prefixo BR- para Plotly
 df_mapa = resumo_por_regiao.copy()
+df_mapa["codigo_plotly"] = "BR-" + df_mapa["estado"]
 
 # Plotly choropleth
 fig = px.choropleth(
     df_mapa,
-    locations="estado",          # coluna com siglas dos estados (BR-SP)
+    locations="codigo_plotly",       # usa coluna com BR-RJ, BR-SP etc.
     locationmode="ISO-3166-2",
     color="% Até 3 Dias",
     color_continuous_scale="Greens",
