@@ -164,33 +164,42 @@ with tab4:
     df_estoque["Quantidade"] = pd.to_numeric(df_estoque["Quantidade"], errors="coerce").fillna(0)
     df_estoque["Estoque Mínimo"] = pd.to_numeric(df_estoque["Estoque Mínimo"], errors="coerce").fillna(0)
 
-    # --- Atualizar estoque com base nos pedidos enviados (coluna G = quantidade, coluna H = produto) ---
-    if not df_valid.empty and not df_estoque.empty:
-        for _, row in df_valid.iterrows():
-            produto_pedido = str(row.iloc[7])  # Coluna H da Página1 = Produto
-            quantidade_enviada = row.iloc[6]   # Coluna G da Página1 = Quantidade enviada
+    # --- Salvar no session_state para persistir alterações ---
+    if "df_estoque_atual" not in st.session_state:
+        st.session_state.df_estoque_atual = df_estoque.copy()
 
-            if produto_pedido in df_estoque["Produto"].values:
-                df_estoque.loc[df_estoque["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
+    # --- Atualizar estoque com base nos pedidos enviados (col G = quantidade, col H = produto) ---
+    df_estoque_atual = st.session_state.df_estoque_atual.copy()
+
+    if not df_valid.empty:
+        for _, row in df_valid.iterrows():
+            produto_pedido = str(row.iloc[7])  # H = Produto
+            quantidade_enviada = row.iloc[6]   # G = Quantidade
+
+            if produto_pedido in df_estoque_atual["Produto"].values:
+                df_estoque_atual.loc[df_estoque_atual["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
 
         # Evitar valores negativos
-        df_estoque["Quantidade"] = df_estoque["Quantidade"].clip(lower=0)
+        df_estoque_atual["Quantidade"] = df_estoque_atual["Quantidade"].clip(lower=0)
+
+        # Atualiza o session_state
+        st.session_state.df_estoque_atual = df_estoque_atual
 
     # --- Alerta de estoque baixo ---
-    estoque_baixo = df_estoque[df_estoque["Quantidade"] <= df_estoque["Estoque Mínimo"]]
+    estoque_baixo = df_estoque_atual[df_estoque_atual["Quantidade"] <= df_estoque_atual["Estoque Mínimo"]]
     if not estoque_baixo.empty:
         st.warning("⚠️ Produtos com estoque baixo!")
         st.dataframe(estoque_baixo)
 
     # --- Tabela completa de estoque ---
     st.subheader("📝 Estoque Atual")
-    st.dataframe(df_estoque)
+    st.dataframe(df_estoque_atual)
 
     # --- Gráfico de barras quantidade vs estoque mínimo ---
     st.subheader("📊 Estoque Atual x Estoque Mínimo")
-    if not df_estoque.empty:
+    if not df_estoque_atual.empty:
         fig_estoque = px.bar(
-            df_estoque,
+            df_estoque_atual,
             x="Produto",
             y=["Quantidade", "Estoque Mínimo"],
             barmode="group",
