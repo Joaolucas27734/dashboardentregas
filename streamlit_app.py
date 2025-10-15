@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import requests
+import json
+import os
 
 # --- Configuração da página ---
 st.set_page_config(page_title="Dashboard Interativo de Entregas", layout="wide")
@@ -72,23 +73,27 @@ if st.session_state.estado_selecionado is None:
         ("% ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
     ]).reset_index()
 
-    geojson_url = "https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson"
-    geojson = requests.get(geojson_url).json()
-
-    fig = px.choropleth_mapbox(
-        resumo_brasil,
-        geojson=geojson,
-        locations="estado",
-        featureidkey="properties.sigla",
-        color="% ≤3 dias",
-        hover_data=["Total","% ≤3 dias"],
-        color_continuous_scale="Greens",
-        mapbox_style="carto-positron",
-        zoom=3.5,
-        center={"lat":-14.2350,"lon":-51.9253},
-        opacity=0.6
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    geojson_path = "geojsons/BR.json"  # GeoJSON completo do Brasil
+    if os.path.exists(geojson_path):
+        with open(geojson_path, "r", encoding="utf-8") as f:
+            geojson = json.load(f)
+        
+        fig = px.choropleth_mapbox(
+            resumo_brasil,
+            geojson=geojson,
+            locations="estado",
+            featureidkey="properties.sigla",
+            color="% ≤3 dias",
+            hover_data=["Total","% ≤3 dias"],
+            color_continuous_scale="Greens",
+            mapbox_style="carto-positron",
+            zoom=3.5,
+            center={"lat":-14.2350,"lon":-51.9253},
+            opacity=0.6
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error("GeoJSON do Brasil não encontrado!")
 
     # --- Seleção de estado para drill-down ---
     estado_click = st.selectbox("Clique no estado para ver cidades:", [""] + list(resumo_brasil["estado"]))
@@ -97,30 +102,34 @@ if st.session_state.estado_selecionado is None:
 
 else:
     # --- Mapa do Estado selecionado ---
-    st.subheader(f"🗺️ Mapa do Estado: {st.session_state.estado_selecionado}")
-    df_estado = df[df["estado"]==st.session_state.estado_selecionado]
+    estado = st.session_state.estado_selecionado
+    st.subheader(f"🗺️ Mapa do Estado: {estado}")
+    df_estado = df[df["estado"]==estado]
     resumo_cidades = df_estado.groupby("cidade")["dias_entrega"].agg([
         ("Total","count"),
         ("% ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
     ]).reset_index()
 
-    # GeoJSON cidades do estado (exemplo RJ)
-    geojson_url = f"https://raw.githubusercontent.com/kelvins/BR-municipios/master/csv/geojson/{st.session_state.estado_selecionado}.json"
-    geojson = requests.get(geojson_url).json()
-
-    fig = px.choropleth_mapbox(
-        resumo_cidades,
-        geojson=geojson,
-        locations="cidade",
-        featureidkey="properties.name",
-        color="% ≤3 dias",
-        hover_data=["Total","% ≤3 dias"],
-        color_continuous_scale="Greens",
-        mapbox_style="carto-positron",
-        zoom=6,
-        opacity=0.6
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    geojson_path = f"geojsons/{estado}.json"
+    if os.path.exists(geojson_path):
+        with open(geojson_path, "r", encoding="utf-8") as f:
+            geojson = json.load(f)
+        
+        fig = px.choropleth_mapbox(
+            resumo_cidades,
+            geojson=geojson,
+            locations="cidade",
+            featureidkey="properties.name",
+            color="% ≤3 dias",
+            hover_data=["Total","% ≤3 dias"],
+            color_continuous_scale="Greens",
+            mapbox_style="carto-positron",
+            zoom=6,
+            opacity=0.6
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.error(f"GeoJSON das cidades do estado {estado} não encontrado!")
 
     # --- Botão voltar ao Brasil ---
     if st.button("⬅️ Voltar ao mapa do Brasil"):
