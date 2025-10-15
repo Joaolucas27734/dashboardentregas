@@ -150,26 +150,41 @@ with tab2:
 
 # ------------------- Aba 3: Probabilidade de Entrega -------------------
 with tab3:
-    st.subheader("📈 Probabilidade de Entrega por Estado")
+    st.subheader("📈 Probabilidade de Entrega por Estado (em %)")
 
+    # Calcular probabilidade em %
     prob_estado = df_valid.groupby("estado")["dias_entrega"].agg([
         ("Total Pedidos", "count"),
-        ("Prob ≤3 dias", lambda x: (x <= 3).sum() / len(x) * 100),
-        ("Prob ≤5 dias", lambda x: (x <= 5).sum() / len(x) * 100)
+        ("Prob ≤3 dias", lambda x: round((x <= 3).sum() / len(x) * 100, 0)),
+        ("Prob ≤5 dias", lambda x: round((x <= 5).sum() / len(x) * 100, 0))
     ]).reset_index()
 
-    # Tabela de probabilidades
-    st.dataframe(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
+    # Exibir tabela clean
+    st.table(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
 
-    # Gráfico comparativo
+    # Gráfico comparativo clean
+    prob_melt = prob_estado.melt(
+        id_vars="estado",
+        value_vars=["Prob ≤3 dias", "Prob ≤5 dias"],
+        var_name="Prazo",
+        value_name="Probabilidade (%)"
+    )
+
     fig_prob = px.bar(
-        prob_estado.melt(id_vars="estado", value_vars=["Prob ≤3 dias", "Prob ≤5 dias"],
-                         var_name="Prazo", value_name="Probabilidade (%)"),
+        prob_melt,
         x="estado",
         y="Probabilidade (%)",
         color="Prazo",
         barmode="group",
-        title="Probabilidade de Entrega ≤3 e ≤5 dias por Estado",
-        text_auto=True
+        text="Probabilidade (%)",
+        title="Probabilidade de Entrega ≤3 e ≤5 dias por Estado"
     )
+    fig_prob.update_layout(
+        xaxis_title="Estado",
+        yaxis_title="Probabilidade (%)",
+        legend_title="Prazo",
+        uniformtext_minsize=10,
+        uniformtext_mode='hide'
+    )
+    fig_prob.update_traces(texttemplate="%{text}%", textposition="outside")
     st.plotly_chart(fig_prob, use_container_width=True)
