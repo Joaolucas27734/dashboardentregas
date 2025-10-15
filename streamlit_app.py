@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
 
 # --- Configuração da página ---
 st.set_page_config(page_title="Dashboard de Entregas", layout="wide")
@@ -13,14 +14,14 @@ url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 df = pd.read_csv(url)
 
 # --- Converter colunas para datetime ---
-df["data_envio"] = pd.to_datetime(df.iloc[:, 1], errors="coerce")  # coluna B
-df["data_entrega"] = pd.to_datetime(df.iloc[:, 2], errors="coerce")  # coluna C
+df["data_envio"] = pd.to_datetime(df.iloc[:, 1], errors="coerce")   # coluna B
+df["data_entrega"] = pd.to_datetime(df.iloc[:, 2], errors="coerce") # coluna C
 
 # --- Criar coluna dias de entrega ---
 df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 
 # --- Coluna de estado/região (coluna D) ---
-df["estado"] = df.iloc[:, 3]  # coluna D
+df["estado"] = df.iloc[:, 3].str.upper()  # garante que siglas fiquem maiúsculas
 
 # --- Filtro por estado ---
 regioes = sorted(df["estado"].dropna().unique())
@@ -57,10 +58,28 @@ resumo_por_regiao = df.groupby("estado")["dias_entrega"].agg([
     ("Mediana Dias", "median"),
     ("% Até 3 Dias", lambda x: (x <= 3).sum()/len(x)*100),
     ("% Atrasos +5 Dias", lambda x: (x > 5).sum()/len(x)*100)
-])
+]).reset_index()
 st.dataframe(resumo_por_regiao)
 
 # --- Histograma de dias de entrega ---
 st.subheader("📈 Distribuição de Dias de Entrega")
 freq = df_valid["dias_entrega"].value_counts().sort_index()
 st.bar_chart(freq)
+
+# --- Mapa do Brasil interativo ---
+st.subheader("🌎 Mapa de Entregas por Estado (% ≤3 dias)")
+# cria dataframe para o mapa
+df_mapa = resumo_por_regiao.copy()
+
+# Plotly choropleth
+fig = px.choropleth(
+    df_mapa,
+    locations="estado",          # coluna com siglas dos estados (BR-SP)
+    locationmode="ISO-3166-2",
+    color="% Até 3 Dias",
+    color_continuous_scale="Greens",
+    scope="south america",
+    labels={"% Até 3 Dias":"% Entregas ≤3 dias"}
+)
+
+st.plotly_chart(fig, use_container_width=True)
