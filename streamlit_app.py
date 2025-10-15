@@ -66,22 +66,43 @@ st.subheader("📈 Distribuição de Dias de Entrega")
 freq = df_valid["dias_entrega"].value_counts().sort_index()
 st.bar_chart(freq)
 
-# --- Mapa do Brasil interativo ---
+# --- Mapa com Scatter Geo (funciona mesmo com apenas RJ) ---
 st.subheader("🌎 Mapa de Entregas por Estado (% ≤3 dias)")
 
-# Adiciona prefixo BR- para Plotly
-df_mapa = resumo_por_regiao.copy()
-df_mapa["codigo_plotly"] = "BR-" + df_mapa["estado"]
+# Dicionário de latitude/longitude para estados (apenas RJ por exemplo)
+lat_lon_estados = {
+    "RJ": (-22.9068, -43.1729),
+    "SP": (-23.5505, -46.6333),
+    "MG": (-19.9167, -43.9345),
+    "BA": (-12.9714, -38.5014),
+    # Adicione mais estados se quiser
+}
 
-# Plotly choropleth
-fig = px.choropleth(
+# Criar dataframe para o mapa
+map_data = []
+for _, row in resumo_por_regiao.iterrows():
+    estado = row["estado"]
+    if estado in lat_lon_estados:
+        lat, lon = lat_lon_estados[estado]
+        map_data.append({
+            "estado": estado,
+            "lat": lat,
+            "lon": lon,
+            "% Até 3 Dias": row["% Até 3 Dias"]
+        })
+
+df_mapa = pd.DataFrame(map_data)
+
+fig = px.scatter_geo(
     df_mapa,
-    locations="codigo_plotly",       # usa coluna com BR-RJ, BR-SP etc.
-    locationmode="ISO-3166-2",
+    lat="lat",
+    lon="lon",
     color="% Até 3 Dias",
-    color_continuous_scale="Greens",
+    size="% Até 3 Dias",
+    projection="natural earth",
     scope="south america",
-    labels={"% Até 3 Dias":"% Entregas ≤3 dias"}
+    hover_name="estado",
+    color_continuous_scale="Greens"
 )
 
 st.plotly_chart(fig, use_container_width=True)
