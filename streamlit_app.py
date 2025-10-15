@@ -144,58 +144,31 @@ with tab3:
     ]).reset_index()
     st.table(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
 
-# ==================== TAB 4 - Controle de Estoque via Planilha (sem SKU) ====================
+# ==================== TAB 4 - Controle de Estoque ====================
 with tab4:
-    st.subheader("📦 Controle de Estoque – Planilha")
+    st.subheader("📦 Controle de Estoque Interno")
 
-    # --- Ler planilha de estoque ---
-    sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
-    url_estoque = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Estoque"
-    df_estoque = pd.read_csv(url_estoque)
+    # --- Ler a aba Estoque da planilha ---
+    # Supondo que a aba de estoque se chama "Estoque"
+    try:
+        df_estoque = pd.read_excel(
+            "caminho_da_sua_planilha.xlsx", sheet_name="Estoque"
+        )
+    except:
+        st.error("❌ Não foi possível ler a aba 'Estoque'. Verifique o arquivo.")
+        df_estoque = pd.DataFrame(columns=["Produto", "Quantidade", "Estoque Mínimo"])
 
     # --- Atualizar estoque com base nos pedidos enviados ---
-    if not df_valid.empty:
-        df_estoque = df_estoque.copy()
+    if not df_valid.empty and not df_estoque.empty:
         for _, row in df_valid.iterrows():
-            produto_pedido = str(row.iloc[5])  # Nome do produto
-            quantidade_enviada = row.iloc[6]   # Quantidade enviada
+            produto_pedido = str(row.iloc[5])  # Coluna F da planilha de pedidos
+            quantidade_enviada = row.iloc[6]   # Coluna G da planilha de pedidos
 
             if produto_pedido in df_estoque["Produto"].values:
                 df_estoque.loc[df_estoque["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
 
         # Evitar valores negativos
         df_estoque["Quantidade"] = df_estoque["Quantidade"].clip(lower=0)
-
-    # --- Expander para adicionar/atualizar produto ---
-    with st.expander("➕ Adicionar / Atualizar Produto", expanded=False):
-        with st.form("form_estoque", clear_on_submit=True):
-            produto = st.text_input("Produto")
-            quantidade = st.number_input("Quantidade", min_value=0, value=0)
-            estoque_minimo = st.number_input("Estoque Mínimo", min_value=0, value=0)
-            submit = st.form_submit_button("Adicionar / Atualizar")
-
-            if submit:
-                if produto.strip() == "":
-                    st.error("Preencha o nome do Produto!")
-                else:
-                    if produto in df_estoque["Produto"].values:
-                        df_estoque.loc[df_estoque["Produto"] == produto, ["Quantidade", "Estoque Mínimo"]] = [quantidade, estoque_minimo]
-                        st.success(f"Produto {produto} atualizado!")
-                    else:
-                        df_estoque = pd.concat([df_estoque, pd.DataFrame([{
-                            "Produto": produto,
-                            "Quantidade": quantidade,
-                            "Estoque Mínimo": estoque_minimo
-                        }])], ignore_index=True)
-                        st.success(f"Produto {produto} adicionado!")
-
-    # --- Expander para excluir produto ---
-    if not df_estoque.empty:
-        with st.expander("❌ Excluir Produto", expanded=False):
-            produto_excluir = st.selectbox("Selecione o produto para excluir", df_estoque["Produto"])
-            if st.button("Excluir Produto"):
-                df_estoque = df_estoque[df_estoque["Produto"] != produto_excluir].reset_index(drop=True)
-                st.success(f"Produto {produto_excluir} excluído!")
 
     # --- Alerta de estoque baixo ---
     estoque_baixo = df_estoque[df_estoque["Quantidade"] <= df_estoque["Estoque Mínimo"]]
@@ -220,4 +193,3 @@ with tab4:
             title="Quantidade em Estoque vs Estoque Mínimo"
         )
         st.plotly_chart(fig_estoque, use_container_width=True)
-
