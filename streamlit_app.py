@@ -144,19 +144,18 @@ with tab3:
     ]).reset_index()
     st.table(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
 
-# ==================== TAB 4 - Controle de Estoque ====================
+# ==================== TAB 4 - Controle de Estoque via Planilha ====================
 with tab4:
-    st.subheader("📦 Controle de Estoque Interno")
+    st.subheader("📦 Controle de Estoque – Planilha")
 
-    # --- Criar ou carregar estoque interno ---
-    if "df_estoque" not in st.session_state:
-        st.session_state.df_estoque = pd.DataFrame(columns=["Produto", "SKU", "Quantidade", "Estoque Mínimo"])
-
-    df_estoque = st.session_state.df_estoque.copy()
+    # --- Ler planilha de estoque ---
+    sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
+    url_estoque = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet=Estoque"
+    df_estoque = pd.read_csv(url_estoque)
 
     # --- Atualizar estoque com base nos pedidos enviados ---
     if not df_valid.empty:
-        # Supondo que a coluna F seja Produto e G seja Quantidade enviada
+        df_estoque = df_estoque.copy()
         for _, row in df_valid.iterrows():
             produto_pedido = str(row.iloc[5])  # Nome do produto ou SKU
             quantidade_enviada = row.iloc[6]   # Quantidade enviada
@@ -166,7 +165,6 @@ with tab4:
 
         # Evitar valores negativos
         df_estoque["Quantidade"] = df_estoque["Quantidade"].clip(lower=0)
-        st.session_state.df_estoque = df_estoque
 
     # --- Expander para adicionar/atualizar produto ---
     with st.expander("➕ Adicionar / Atualizar Produto", expanded=False):
@@ -181,7 +179,6 @@ with tab4:
                 if produto.strip() == "" or sku.strip() == "":
                     st.error("Preencha Produto e SKU!")
                 else:
-                    # Atualizar se SKU já existe
                     if sku in df_estoque["SKU"].values:
                         df_estoque.loc[df_estoque["SKU"] == sku, ["Produto", "Quantidade", "Estoque Mínimo"]] = [produto, quantidade, estoque_minimo]
                         st.success(f"Produto {produto} atualizado!")
@@ -194,16 +191,13 @@ with tab4:
                         }])], ignore_index=True)
                         st.success(f"Produto {produto} adicionado!")
 
-                    st.session_state.df_estoque = df_estoque
-
     # --- Expander para excluir produto ---
     if not df_estoque.empty:
         with st.expander("❌ Excluir Produto", expanded=False):
             sku_excluir = st.selectbox("Selecione o SKU do produto para excluir", df_estoque["SKU"])
             if st.button("Excluir Produto"):
-                st.session_state.df_estoque = df_estoque[df_estoque["SKU"] != sku_excluir].reset_index(drop=True)
+                df_estoque = df_estoque[df_estoque["SKU"] != sku_excluir].reset_index(drop=True)
                 st.success(f"Produto com SKU {sku_excluir} excluído!")
-                df_estoque = st.session_state.df_estoque  # Atualiza dataframe local
 
     # --- Alerta de estoque baixo ---
     estoque_baixo = df_estoque[df_estoque["Quantidade"] <= df_estoque["Estoque Mínimo"]]
@@ -228,3 +222,4 @@ with tab4:
             title="Quantidade em Estoque vs Estoque Mínimo"
         )
         st.plotly_chart(fig_estoque, use_container_width=True)
+
