@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 
 # --- Configuração da página ---
-st.set_page_config(page_title="Dashboard Didático de Entregas", layout="wide")
-st.title("📦 Dashboard Interativo de Entregas – Brasil")
+st.set_page_config(page_title="Dashboard de Entregas Brasil", layout="wide")
+st.title("📦 Dashboard de Entregas – Brasil")
 
 # --- Ler planilha ---
 sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
@@ -20,20 +20,15 @@ df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 df["estado"] = df.iloc[:,3].str.upper()  # coluna D
 df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
 
-# --- Filtro por estado ---
-regioes = sorted(df["estado"].dropna().unique())
-regiao_sel = st.selectbox("Filtrar por Estado", ["Todos"] + regioes)
-df_filtrado = df if regiao_sel=="Todos" else df[df["estado"]==regiao_sel]
-df_valid = df_filtrado.dropna(subset=["dias_entrega"])
-total = len(df_valid)
-
 # --- Métricas principais ---
+df_valid = df.dropna(subset=["dias_entrega"])
+total = len(df_valid)
 media = df_valid["dias_entrega"].mean() if total>0 else 0
 mediana = df_valid["dias_entrega"].median() if total>0 else 0
 pct_ate3 = (df_valid["dias_entrega"]<=3).sum()/total*100 if total>0 else 0
 pct_atraso5 = (df_valid["dias_entrega"]>5).sum()/total*100 if total>0 else 0
 
-# --- Cards coloridos ---
+# --- Cards ---
 st.subheader("📊 Principais Métricas")
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Tempo médio (dias)", f"{media:.1f}")
@@ -41,34 +36,53 @@ col2.metric("Mediana (dias)", f"{mediana:.0f}")
 col3.metric("% Entregas ≤3 dias", f"{pct_ate3:.1f}%")
 col4.metric("% Atrasos (>5 dias)", f"{pct_atraso5:.1f}%")
 
-# --- Resumo por cidade ---
-st.subheader(f"📋 Resumo por Cidade {'do Brasil' if regiao_sel=='Todos' else 'do Estado '+regiao_sel}")
-resumo_cidade = df_valid.groupby(["estado","cidade"])["dias_entrega"].agg([
+# --- Resumo por estado ---
+st.subheader("📋 Resumo por Estado")
+resumo_estado = df_valid.groupby("estado")["dias_entrega"].agg([
     ("Total Pedidos","count"),
     ("Média Dias","mean"),
     ("Mediana Dias","median"),
     ("% Entregas ≤3 dias", lambda x: (x<=3).sum()/len(x)*100),
     ("% Atrasos >5 dias", lambda x: (x>5).sum()/len(x)*100)
 ]).reset_index()
+st.dataframe(resumo_estado)
 
-if regiao_sel=="Todos":
-    st.dataframe(resumo_cidade)
-else:
-    st.dataframe(resumo_cidade[resumo_cidade["estado"]==regiao_sel])
+# --- Mapa do Brasil ---
+st.subheader("🌎 Mapa do Brasil – % Entregas ≤3 dias")
+# Plotly tem built-in geo para Brazil, usa locations = sigla dos estados
+fig = px.choropleth(
+    resumo_estado,
+    locations="estado",
+    locationmode="USA-states",  # Para Brasil, vamos precisar mapear siglas para nomes do Plotly
+    color="% Entregas ≤3 dias",
+    hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
+    color_continuous_scale="Greens",
+    labels={"% Entregas ≤3 dias": "% Entregas ≤3 dias"},
+    scope="south america"
+)
 
-# --- Gráfico interativo por cidade ---
-st.subheader("📈 Gráfico de Entregas por Cidade")
-if regiao_sel=="Todos":
-    fig = px.bar(resumo_cidade, x="cidade", y="% Entregas ≤3 dias", color="estado",
-                 hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
-                 title="Entregas ≤3 dias por Cidade (Brasil)")
-else:
-    df_graf = resumo_cidade[resumo_cidade["estado"]==regiao_sel]
-    fig = px.bar(df_graf, x="cidade", y="% Entregas ≤3 dias", color="cidade",
-                 hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
-                 title=f"Entregas ≤3 dias por Cidade - {regiao_sel}")
-
+# Como Plotly não tem Brasil pronto, podemos usar mapbox:
+fig = px.choropleth_mapbox(
+    resumo_estado,
+    geojson="https://raw.githubusercontent.com/codeforamerica/click_that_hood/master/public/data/brazil-states.geojson",
+    locations="estado",
+    featureidkey="properties.sigla",
+    color="% Entregas ≤3 dias",
+    hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
+    color_continuous_scale="Greens",
+    mapbox_style="carto-positron",
+    zoom=3.5,
+    center={"lat":-14.2350,"lon":-51.9253},
+    opacity=0.6
+)
 st.plotly_chart(fig, use_container_width=True)
+
+# --- Gráfico de barras por estado ---
+st.subheader("📈 Gráfico de Entregas por Estado")
+fig_bar = px.bar(resumo_estado, x="estado", y="% Entregas ≤3 dias",
+                 hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
+                 color="% Entregas ≤3 dias", color_continuous_scale="Greens")
+st.plotly_chart(fig_bar, use_container_width=True)
 
 # --- Histograma de dias de entrega ---
 st.subheader("📊 Distribuição de Dias de Entrega")
@@ -82,6 +96,6 @@ st.markdown("""
 - **Mediana**: dia mais comum de entrega
 - **% Entregas ≤3 dias**: rapidez das entregas
 - **% Atrasos >5 dias**: alertas de atraso
-- **Gráfico por cidade**: barras mostram rapidez por cidade, hover com detalhes
-- **Dropdown de Estado**: filtra cidades de cada estado
+- **Mapa do Brasil**: verde = rápido, vermelho = atrasos
+- **Gráfico por estado**: barra comparativa das entregas rápidas
 """)
