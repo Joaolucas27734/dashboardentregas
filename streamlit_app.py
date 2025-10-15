@@ -16,15 +16,16 @@ df["data_envio"] = pd.to_datetime(df.iloc[:,1], errors="coerce")
 df["data_entrega"] = pd.to_datetime(df.iloc[:,2], errors="coerce")
 df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 
-# --- Colunas de estado e cidade ---
+# --- Colunas de estado, cidade e código de rastreio ---
 df["estado"] = df.iloc[:,3].str.upper()  # coluna D
 df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
+df["codigo_rastreio"] = df.iloc[:,5].astype(str)  # coluna F
+df["link_jt"] = df["codigo_rastreio"].apply(
+    lambda x: f"https://www.jtexpress.com.br/rastreamento?codigo={x}" if x.strip() != "" else ""
+)
 
 # --- Status de entrega ---
 df["Status"] = df["data_entrega"].apply(lambda x: "Entregue" if pd.notna(x) else "Não entregue")
-
-# --- Coluna de código de rastreio (coluna F) ---
-df["codigo_rastreio"] = df.iloc[:,5].astype(str)
 
 # --- Filtro por data ---
 st.sidebar.subheader("📅 Filtrar por Data de Envio")
@@ -47,8 +48,9 @@ qtd_entregue = (df_filtrado["Status"]=="Entregue").sum()
 qtd_nao_entregue = (df_filtrado["Status"]=="Não entregue").sum()
 
 # --- Tabs ---
-tab1, tab2 = st.tabs(["📊 Dashboard", "📝 Resumo de Pedidos"])
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "📝 Resumo de Pedidos", "📊 Probabilidade de Entrega"])
 
+# ------------------- Aba 1: Dashboard -------------------
 with tab1:
     # --- Cards principais ---
     st.subheader("📊 Principais Métricas")
@@ -89,7 +91,6 @@ with tab1:
     estado_sel = st.selectbox("Selecione um estado para ver as cidades", ["Todos"] + estados)
 
     if estado_sel == "Todos":
-        # Gráfico por estado
         fig_estado = px.bar(
             resumo_estado,
             x="estado",
@@ -101,7 +102,6 @@ with tab1:
         )
         st.plotly_chart(fig_estado, use_container_width=True)
     else:
-        # Filtrar cidades do estado selecionado
         df_cidades = df_valid[df_valid["estado"]==estado_sel]
         resumo_cidade = df_cidades.groupby("cidade")["dias_entrega"].agg([
             ("Total Pedidos","count"),
@@ -109,7 +109,6 @@ with tab1:
             ("Mediana Dias","median")
         ]).reset_index()
 
-        # Boxplot mostrando distribuição de dias de entrega
         fig_box = px.box(
             df_cidades,
             x="cidade",
@@ -139,21 +138,38 @@ with tab1:
     - **Histograma**: visualiza a distribuição dos dias de entrega
     """)
 
+# ------------------- Aba 2: Resumo de Pedidos -------------------
 with tab2:
-    # --- Resumo detalhado dos pedidos ---
     st.subheader("📝 Tabela de Pedidos")
-    
-    # Gera link clicável da J&T Express se houver código de rastreio
-    def gerar_link_jt(codigo):
-        if pd.isna(codigo) or codigo == "":
-            return ""
-        return f"https://www.jtexpress.com.br/rastreamento/?codigo={codigo}"
-
     tabela_resumo = df_filtrado[[df.columns[0], "data_envio", "data_entrega", "dias_entrega",
-                                 "estado", "cidade", "Status", "codigo_rastreio"]].sort_values("data_envio")
-    tabela_resumo = tabela_resumo.rename(columns={df.columns[0]: "Número do Pedido"})
-    
-    # Coluna de link
-    tabela_resumo["Link J&T"] = tabela_resumo["codigo_rastreio"].apply(gerar_link_jt)
-    
+                                 "estado", "cidade", "Status", "codigo_rastreio", "link_jt"]].sort_values("data_envio")
+    tabela_resumo = tabela_resumo.rename(columns={df.columns[0]: "Número do Pedido",
+                                                  "codigo_rastreio": "Código de Rastreio",
+                                                  "link_jt": "Link J&T"})
     st.dataframe(tabela_resumo)
+
+# ------------------- Aba 3: Probabilidade de Entrega -------------------
+with tab3:
+    st.subheader("📈 Probabilidade de Entrega por Estado")
+
+    prob_estado = df_valid.groupby("estado")["dias_entrega"].agg([
+        ("Total Pedidos", "count"),
+        ("Prob ≤3 dias", lambda x: (x <= 3).sum() / len(x) * 100),
+        ("Prob ≤5 dias", lambda x: (x <= 5).sum() / len(x) * 100)
+    ]).reset_index()
+
+    # Tabela de probabilidades
+    st.dataframe(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
+
+    # Gráfico comparativo
+    fig_prob = px.bar(
+        prob_estado.melt(id_vars="estado", value_vars=["Prob ≤3 dias", "Prob ≤5 dias"],
+                         var_name="Prazo", value_name="Probabilidade (%)"),
+        x="estado",
+        y="Probabilidade (%)",
+        color="Prazo",
+        barmode="group",
+        title="Probabilidade de Entrega ≤3 e ≤5 dias por Estado",
+        text_auto=True
+    )
+    st.plotly_chart(fig_prob, use_container_width=True)
