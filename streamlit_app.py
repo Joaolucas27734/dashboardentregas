@@ -60,7 +60,7 @@ fig_map = px.choropleth_mapbox(
 st.plotly_chart(fig_map, use_container_width=True)
 
 # --- Dropdown para selecionar estado ---
-st.subheader("📈 Gráfico de Entregas por Cidade")
+st.subheader("📈 Gráfico de Entregas por Estado / Cidade")
 estados = sorted(df_valid["estado"].unique())
 estado_sel = st.selectbox("Selecione um estado para ver as cidades", ["Todos"] + estados)
 
@@ -76,6 +76,11 @@ if estado_sel == "Todos":
         title="Entregas ≤3 dias por Estado"
     )
     st.plotly_chart(fig_estado, use_container_width=True)
+    
+    # Tabela resumo por estado
+    st.subheader("📋 Tabela de Resumo por Estado")
+    st.dataframe(resumo_estado)
+
 else:
     # Filtrar cidades do estado selecionado
     df_cidades = df_valid[df_valid["estado"]==estado_sel]
@@ -94,6 +99,10 @@ else:
         title=f"Entregas ≤3 dias por Cidade - {estado_sel}"
     )
     st.plotly_chart(fig_cidade, use_container_width=True)
+    
+    # Tabela resumo por cidade
+    st.subheader(f"📋 Tabela de Resumo por Cidade - {estado_sel}")
+    st.dataframe(resumo_cidade)
 
 # --- Histograma de dias de entrega ---
 st.subheader("📊 Distribuição de Dias de Entrega")
@@ -109,5 +118,6 @@ st.markdown("""
 - **% Atrasos >5 dias**: alertas de atraso
 - **Mapa do Brasil**: verde = entregas rápidas
 - **Dropdown de Estado**: filtra cidades de cada estado
+- **Tabela por estado ou cidade**: detalhes de total e % de entregas rápidas
 - **Histograma**: distribuição de dias de entrega
 """)
