@@ -3,8 +3,8 @@ import pandas as pd
 import plotly.express as px
 
 # --- Configuração da página ---
-st.set_page_config(page_title="Dashboard Avançado de Entregas", layout="wide")
-st.title("📦 Dashboard Avançado de Entregas – Brasil")
+st.set_page_config(page_title="Dashboard Interativo de Entregas", layout="wide")
+st.title("📦 Dashboard Interativo de Entregas – Brasil")
 
 # --- Ler planilha ---
 sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
@@ -20,40 +20,40 @@ df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 df["estado"] = df.iloc[:,3].str.upper()  # coluna D
 df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
 
-# --- Sidebar para filtro de período ---
-st.sidebar.header("Filtros")
-data_inicio = st.sidebar.date_input("Data inicial", df["data_envio"].min())
-data_fim = st.sidebar.date_input("Data final", df["data_envio"].max())
-df = df[(df["data_envio"]>=pd.to_datetime(data_inicio)) & (df["data_envio"]<=pd.to_datetime(data_fim))]
+# --- Status de entrega ---
+df["Status"] = df["data_entrega"].apply(lambda x: "Entregue" if pd.notna(x) else "Não entregue")
 
-# --- Métricas principais ---
+# --- Dados válidos ---
 df_valid = df.dropna(subset=["dias_entrega"])
 total = len(df_valid)
 media = df_valid["dias_entrega"].mean() if total>0 else 0
 mediana = df_valid["dias_entrega"].median() if total>0 else 0
 pct_ate3 = (df_valid["dias_entrega"]<=3).sum()/total*100 if total>0 else 0
 pct_atraso5 = (df_valid["dias_entrega"]>5).sum()/total*100 if total>0 else 0
-std_entrega = df_valid["dias_entrega"].std() if total>0 else 0
+desvio = df_valid["dias_entrega"].std() if total>0 else 0
+
+# --- Contagem entregues/não entregues ---
+qtd_entregue = (df["Status"]=="Entregue").sum()
+qtd_nao_entregue = (df["Status"]=="Não entregue").sum()
 
 # --- Tabs ---
-tab1, tab2 = st.tabs(["Dashboard Geral", "Resumo de Pedidos"])
+tab1, tab2 = st.tabs(["📊 Dashboard", "📝 Resumo de Pedidos"])
 
 with tab1:
     # --- Cards principais ---
     st.subheader("📊 Principais Métricas")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     col1.metric("Tempo médio (dias)", f"{media:.1f}")
     col2.metric("Mediana (dias)", f"{mediana:.0f}")
     col3.metric("% Entregas ≤3 dias", f"{pct_ate3:.1f}%")
     col4.metric("% Atrasos (>5 dias)", f"{pct_atraso5:.1f}%")
-    col5.metric("Desvio padrão", f"{std_entrega:.1f}")
+    col5.metric("Desvio Padrão", f"{desvio:.1f}")
+    col6.metric("Entregues / Não", f"{qtd_entregue} / {qtd_nao_entregue}")
 
     # --- Resumo por estado ---
     resumo_estado = df_valid.groupby("estado")["dias_entrega"].agg([
         ("Total Pedidos","count"),
-        ("Média Dias","mean"),
-        ("% Entregas ≤3 dias", lambda x: (x<=3).sum()/len(x)*100),
-        ("% Atrasos >5 dias", lambda x: (x>5).sum()/len(x)*100)
+        ("% Entregas ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
     ]).reset_index()
 
     # --- Mapa do Brasil ---
@@ -64,7 +64,7 @@ with tab1:
         locations="estado",
         featureidkey="properties.sigla",
         color="% Entregas ≤3 dias",
-        hover_data=["Total Pedidos","Média Dias","% Atrasos >5 dias"],
+        hover_data=["Total Pedidos"],
         color_continuous_scale="Greens",
         mapbox_style="carto-positron",
         zoom=3.5,
@@ -84,47 +84,62 @@ with tab1:
             resumo_estado,
             x="estado",
             y="% Entregas ≤3 dias",
-            hover_data=["Total Pedidos","Média Dias","% Atrasos >5 dias"],
+            hover_data=["Total Pedidos"],
             color="% Entregas ≤3 dias",
             color_continuous_scale="Greens",
             title="Entregas ≤3 dias por Estado"
         )
         st.plotly_chart(fig_estado, use_container_width=True)
     else:
-        # Boxplot por cidade mostrando distribuição dos dias de entrega
+        # Filtrar cidades do estado selecionado
         df_cidades = df_valid[df_valid["estado"]==estado_sel]
-        fig_cidade = px.box(
+        resumo_cidade = df_cidades.groupby("cidade")["dias_entrega"].agg([
+            ("Total Pedidos","count"),
+            ("Média Dias","mean"),
+            ("Mediana Dias","median")
+        ]).reset_index()
+
+        # Boxplot mostrando distribuição de dias de entrega
+        fig_box = px.box(
             df_cidades,
             x="cidade",
             y="dias_entrega",
             color="cidade",
-            points="all",
-            title=f"Distribuição dos Dias de Entrega por Cidade - {estado_sel}",
-            labels={"dias_entrega":"Dias de Entrega"}
+            title=f"Distribuição de Dias de Entrega por Cidade - {estado_sel}",
+            points="all"
         )
-        st.plotly_chart(fig_cidade, use_container_width=True)
+        st.plotly_chart(fig_box, use_container_width=True)
 
     # --- Histograma de dias de entrega ---
     st.subheader("📊 Distribuição de Dias de Entrega")
     freq = df_valid["dias_entrega"].value_counts().sort_index()
     st.bar_chart(freq)
 
-    # --- Instruções apenas na página inicial ---
+    # --- Instruções ---
     st.markdown("""
-### ℹ️ Como interpretar este dashboard
-- **Tempo médio**: média de dias que os pedidos levam para chegar
-- **Mediana**: dia mais comum de entrega
-- **% Entregas ≤3 dias**: rapidez das entregas
-- **% Atrasos >5 dias**: alertas de atraso
-- **Desvio padrão**: consistência do tempo de entrega
-- **Mapa do Brasil**: verde = entregas rápidas
-- **Dropdown de Estado**: filtra cidades de cada estado (boxplot mostra distribuição)
-- **Tabela de Pedidos**: detalhes completos de cada pedido
-- **Histograma**: visualiza a distribuição dos dias de entrega
-""")
+    ### ℹ️ Como interpretar este dashboard
+    - **Tempo médio**: média de dias que os pedidos levam para chegar
+    - **Mediana**: dia mais comum de entrega
+    - **% Entregas ≤3 dias**: rapidez das entregas
+    - **% Atrasos >5 dias**: alertas de atraso
+    - **Desvio padrão**: consistência do tempo de entrega
+    - **Mapa do Brasil**: verde = entregas rápidas
+    - **Dropdown de Estado**: filtra cidades de cada estado (boxplot mostra distribuição)
+    - **Tabela de Pedidos**: detalhes completos de cada pedido
+    - **Histograma**: visualiza a distribuição dos dias de entrega
+    """)
 
 with tab2:
     # --- Resumo detalhado dos pedidos ---
     st.subheader("📝 Tabela de Pedidos")
-    tabela_resumo = df_valid[["data_envio","data_entrega","dias_entrega","estado","cidade"]].sort_values("data_envio")
+    tabela_resumo = df[[
+        df.columns[0],  # Número do pedido
+        "data_envio",
+        "data_entrega",
+        "dias_entrega",
+        "estado",
+        "cidade",
+        "Status"
+    ]].sort_values("data_envio")
+    tabela_resumo = tabela_resumo.rename(columns={df.columns[0]: "Número do Pedido"})
     st.dataframe(tabela_resumo)
