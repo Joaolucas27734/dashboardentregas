@@ -1,16 +1,10 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import json
-import os
 
 # --- Configuração da página ---
-st.set_page_config(page_title="Dashboard Interativo de Entregas", layout="wide")
-st.title("📦 Dashboard Didático de Entregas – Brasil")
-
-# --- Session state para drill-down ---
-if "estado_selecionado" not in st.session_state:
-    st.session_state.estado_selecionado = None
+st.set_page_config(page_title="Dashboard Didático de Entregas", layout="wide")
+st.title("📦 Dashboard Interativo de Entregas – Brasil")
 
 # --- Ler planilha ---
 sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
@@ -47,101 +41,47 @@ col2.metric("Mediana (dias)", f"{mediana:.0f}")
 col3.metric("% Entregas ≤3 dias", f"{pct_ate3:.1f}%")
 col4.metric("% Atrasos (>5 dias)", f"{pct_atraso5:.1f}%")
 
-# --- Tabela resumo por estado ---
-st.subheader("📋 Resumo por Estado")
-resumo = df.groupby("estado")["dias_entrega"].agg([
+# --- Resumo por cidade ---
+st.subheader(f"📋 Resumo por Cidade {'do Brasil' if regiao_sel=='Todos' else 'do Estado '+regiao_sel}")
+resumo_cidade = df_valid.groupby(["estado","cidade"])["dias_entrega"].agg([
     ("Total Pedidos","count"),
     ("Média Dias","mean"),
     ("Mediana Dias","median"),
     ("% Entregas ≤3 dias", lambda x: (x<=3).sum()/len(x)*100),
     ("% Atrasos >5 dias", lambda x: (x>5).sum()/len(x)*100)
 ]).reset_index()
-st.dataframe(resumo)
+
+if regiao_sel=="Todos":
+    st.dataframe(resumo_cidade)
+else:
+    st.dataframe(resumo_cidade[resumo_cidade["estado"]==regiao_sel])
+
+# --- Gráfico interativo por cidade ---
+st.subheader("📈 Gráfico de Entregas por Cidade")
+if regiao_sel=="Todos":
+    fig = px.bar(resumo_cidade, x="cidade", y="% Entregas ≤3 dias", color="estado",
+                 hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
+                 title="Entregas ≤3 dias por Cidade (Brasil)")
+else:
+    df_graf = resumo_cidade[resumo_cidade["estado"]==regiao_sel]
+    fig = px.bar(df_graf, x="cidade", y="% Entregas ≤3 dias", color="cidade",
+                 hover_data=["Total Pedidos","Média Dias","Mediana Dias","% Atrasos >5 dias"],
+                 title=f"Entregas ≤3 dias por Cidade - {regiao_sel}")
+
+st.plotly_chart(fig, use_container_width=True)
 
 # --- Histograma de dias de entrega ---
-st.subheader("📈 Distribuição de Dias de Entrega")
+st.subheader("📊 Distribuição de Dias de Entrega")
 freq = df_valid["dias_entrega"].value_counts().sort_index()
 st.bar_chart(freq)
 
-# --- Mapa interativo ---
-st.subheader("🌎 Mapa Interativo de Entregas")
-
-if st.session_state.estado_selecionado is None:
-    # --- Mapa do Brasil ---
-    resumo_brasil = df.groupby("estado")["dias_entrega"].agg([
-        ("Total","count"),
-        ("% ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
-    ]).reset_index()
-
-    geojson_path = "geojsons/BR.json"  # GeoJSON completo do Brasil
-    if os.path.exists(geojson_path):
-        with open(geojson_path, "r", encoding="utf-8") as f:
-            geojson = json.load(f)
-        
-        fig = px.choropleth_mapbox(
-            resumo_brasil,
-            geojson=geojson,
-            locations="estado",
-            featureidkey="properties.sigla",
-            color="% ≤3 dias",
-            hover_data=["Total","% ≤3 dias"],
-            color_continuous_scale="Greens",
-            mapbox_style="carto-positron",
-            zoom=3.5,
-            center={"lat":-14.2350,"lon":-51.9253},
-            opacity=0.6
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error("GeoJSON do Brasil não encontrado!")
-
-    # --- Seleção de estado para drill-down ---
-    estado_click = st.selectbox("Clique no estado para ver cidades:", [""] + list(resumo_brasil["estado"]))
-    if estado_click:
-        st.session_state.estado_selecionado = estado_click
-
-else:
-    # --- Mapa do Estado selecionado ---
-    estado = st.session_state.estado_selecionado
-    st.subheader(f"🗺️ Mapa do Estado: {estado}")
-    df_estado = df[df["estado"]==estado]
-    resumo_cidades = df_estado.groupby("cidade")["dias_entrega"].agg([
-        ("Total","count"),
-        ("% ≤3 dias", lambda x: (x<=3).sum()/len(x)*100)
-    ]).reset_index()
-
-    geojson_path = f"geojsons/{estado}.json"
-    if os.path.exists(geojson_path):
-        with open(geojson_path, "r", encoding="utf-8") as f:
-            geojson = json.load(f)
-        
-        fig = px.choropleth_mapbox(
-            resumo_cidades,
-            geojson=geojson,
-            locations="cidade",
-            featureidkey="properties.name",
-            color="% ≤3 dias",
-            hover_data=["Total","% ≤3 dias"],
-            color_continuous_scale="Greens",
-            mapbox_style="carto-positron",
-            zoom=6,
-            opacity=0.6
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error(f"GeoJSON das cidades do estado {estado} não encontrado!")
-
-    # --- Botão voltar ao Brasil ---
-    if st.button("⬅️ Voltar ao mapa do Brasil"):
-        st.session_state.estado_selecionado = None
-
-# --- Seção explicativa ---
+# --- Instruções ---
 st.markdown("""
 ### ℹ️ Como interpretar este dashboard
 - **Tempo médio**: média de dias que os pedidos levam para chegar
 - **Mediana**: dia mais comum de entrega
 - **% Entregas ≤3 dias**: rapidez das entregas
 - **% Atrasos >5 dias**: alertas de atraso
-- **Mapa do Brasil**: verde = entregas rápidas, vermelho = atrasos
-- **Mapa do Estado**: detalhamento por cidades
+- **Gráfico por cidade**: barras mostram rapidez por cidade, hover com detalhes
+- **Dropdown de Estado**: filtra cidades de cada estado
 """)
