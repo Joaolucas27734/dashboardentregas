@@ -109,14 +109,8 @@ with tab1:
     freq = df_valid["dias_entrega"].value_counts().sort_index()
     st.bar_chart(freq)
 
-with tab2:
-    # --- Resumo detalhado dos pedidos ---
-    st.subheader("📝 Tabela de Pedidos")
-    tabela_resumo = df_valid[["data_envio","data_entrega","dias_entrega","estado","cidade"]].sort_values("data_envio")
-    st.dataframe(tabela_resumo)
-
-# --- Instruções ---
-st.markdown("""
+    # --- Instruções apenas na página inicial ---
+    st.markdown("""
 ### ℹ️ Como interpretar este dashboard
 - **Tempo médio**: média de dias que os pedidos levam para chegar
 - **Mediana**: dia mais comum de entrega
@@ -128,3 +122,9 @@ st.markdown("""
 - **Tabela de Pedidos**: detalhes completos de cada pedido
 - **Histograma**: visualiza a distribuição dos dias de entrega
 """)
+
+with tab2:
+    # --- Resumo detalhado dos pedidos ---
+    st.subheader("📝 Tabela de Pedidos")
+    tabela_resumo = df_valid[["data_envio","data_entrega","dias_entrega","estado","cidade"]].sort_values("data_envio")
+    st.dataframe(tabela_resumo)
