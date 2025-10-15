@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-# Configuração da página
+# --- Configuração da página ---
 st.set_page_config(page_title="Dashboard de Entregas", layout="wide")
 st.title("📦 Dashboard de Entregas por Estado/Região")
 
@@ -13,17 +13,14 @@ url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 df = pd.read_csv(url)
 
 # --- Converter colunas para datetime ---
-df["data_envio"] = pd.to_datetime(df["Data Envio"], errors="coerce")
-df["data_entrega"] = pd.to_datetime(df["Data Entrega"], errors="coerce")
+df["data_envio"] = pd.to_datetime(df.iloc[:, 1], errors="coerce")  # coluna B
+df["data_entrega"] = pd.to_datetime(df.iloc[:, 2], errors="coerce")  # coluna C
 
 # --- Criar coluna dias de entrega ---
 df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 
-# --- Verifica se existe coluna de estado/UF ---
-if "Estado" in df.columns:
-    df["estado"] = df["Estado"]
-else:
-    df["estado"] = "Todos"
+# --- Coluna de estado/região (coluna D) ---
+df["estado"] = df.iloc[:, 3]  # coluna D
 
 # --- Filtro por estado ---
 regioes = sorted(df["estado"].dropna().unique())
@@ -52,10 +49,16 @@ col2.metric("Mediana (dias)", f"{mediana:.0f}")
 col3.metric("% em até 3 dias", f"{pct_ate3:.1f}%")
 col4.metric("% atrasos (+5 dias)", f"{pct_atraso5:.1f}%")
 
-# --- Tabela resumo por estado ---
-st.subheader("📋 Resumo por Estado")
-resumo = df.groupby("estado")["dias_entrega"].agg(["count","mean","median"])
-st.dataframe(resumo)
+# --- Tabela resumo por estado (todas as regiões) ---
+st.subheader("📋 Métricas por Região")
+resumo_por_regiao = df.groupby("estado")["dias_entrega"].agg([
+    ("Total Pedidos", "count"),
+    ("Média Dias", "mean"),
+    ("Mediana Dias", "median"),
+    ("% Até 3 Dias", lambda x: (x <= 3).sum()/len(x)*100),
+    ("% Atrasos +5 Dias", lambda x: (x > 5).sum()/len(x)*100)
+])
+st.dataframe(resumo_por_regiao)
 
 # --- Histograma de dias de entrega ---
 st.subheader("📈 Distribuição de Dias de Entrega")
