@@ -148,7 +148,7 @@ with tab3:
 with tab4:
     st.subheader("📦 Controle de Estoque Interno")
 
-    # --- Ler a aba Estoque do Google Sheets ---
+    # --- Ler a aba Estoque ---
     sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
     aba_estoque = "Estoque"
     url_estoque = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={aba_estoque}"
@@ -164,14 +164,14 @@ with tab4:
     df_estoque["Quantidade"] = pd.to_numeric(df_estoque["Quantidade"], errors="coerce").fillna(0)
     df_estoque["Estoque Mínimo"] = pd.to_numeric(df_estoque["Estoque Mínimo"], errors="coerce").fillna(0)
 
-    # --- Salvar no session_state para persistir alterações ---
+    # --- Persistir alterações no session_state ---
     if "df_estoque_atual" not in st.session_state:
         st.session_state.df_estoque_atual = df_estoque.copy()
 
-    # --- Atualizar estoque com base nos pedidos enviados (col G = quantidade, col H = produto) ---
     df_estoque_atual = st.session_state.df_estoque_atual.copy()
 
-    if not df_valid.empty:
+    # --- Atualizar estoque automaticamente com base nos pedidos da Página1 ---
+    if not df_valid.empty and not df_estoque_atual.empty:
         for _, row in df_valid.iterrows():
             produto_pedido = str(row.iloc[7])  # H = Produto
             quantidade_enviada = row.iloc[6]   # G = Quantidade
@@ -182,7 +182,7 @@ with tab4:
         # Evitar valores negativos
         df_estoque_atual["Quantidade"] = df_estoque_atual["Quantidade"].clip(lower=0)
 
-        # Atualiza o session_state
+        # Atualizar session_state
         st.session_state.df_estoque_atual = df_estoque_atual
 
     # --- Alerta de estoque baixo ---
@@ -208,3 +208,4 @@ with tab4:
             title="Quantidade em Estoque vs Estoque Mínimo"
         )
         st.plotly_chart(fig_estoque, use_container_width=True)
+
