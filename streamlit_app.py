@@ -148,15 +148,21 @@ with tab3:
 with tab4:
     st.subheader("📦 Controle de Estoque Interno")
 
-    # --- Ler a aba Estoque da planilha ---
-    # Supondo que a aba de estoque se chama "Estoque"
+    # --- Ler a aba Estoque do Google Sheets ---
+    sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"  # ID da planilha
+    aba_estoque = "Estoque"  # nome da aba
+
+    url_estoque = f"https://docs.google.com/spreadsheets/d/{sheet_id}/gviz/tq?tqx=out:csv&sheet={aba_estoque}"
+
     try:
-        df_estoque = pd.read_excel(
-            "caminho_da_sua_planilha.xlsx", sheet_name="Estoque"
-        )
+        df_estoque = pd.read_csv(url_estoque)
     except:
-        st.error("❌ Não foi possível ler a aba 'Estoque'. Verifique o arquivo.")
+        st.error("❌ Não foi possível ler a aba 'Estoque'. Verifique o link ou o nome da aba.")
         df_estoque = pd.DataFrame(columns=["Produto", "Quantidade", "Estoque Mínimo"])
+
+    # --- Garantir tipos corretos ---
+    df_estoque["Quantidade"] = pd.to_numeric(df_estoque["Quantidade"], errors="coerce").fillna(0)
+    df_estoque["Estoque Mínimo"] = pd.to_numeric(df_estoque["Estoque Mínimo"], errors="coerce").fillna(0)
 
     # --- Atualizar estoque com base nos pedidos enviados ---
     if not df_valid.empty and not df_estoque.empty:
@@ -193,3 +199,4 @@ with tab4:
             title="Quantidade em Estoque vs Estoque Mínimo"
         )
         st.plotly_chart(fig_estoque, use_container_width=True)
+
