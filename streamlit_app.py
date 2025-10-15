@@ -163,6 +163,7 @@ with tab4:
     # --- Garantir tipos corretos ---
     df_estoque["Quantidade"] = pd.to_numeric(df_estoque["Quantidade"], errors="coerce").fillna(0)
     df_estoque["Estoque Mínimo"] = pd.to_numeric(df_estoque["Estoque Mínimo"], errors="coerce").fillna(0)
+    df_estoque["Produto"] = df_estoque["Produto"].astype(str).str.strip()
 
     # --- Persistir alterações no session_state ---
     if "df_estoque_atual" not in st.session_state:
@@ -170,20 +171,37 @@ with tab4:
 
     df_estoque_atual = st.session_state.df_estoque_atual.copy()
 
-    # --- Atualizar estoque automaticamente com base nos pedidos da Página1 ---
-    if not df_valid.empty and not df_estoque_atual.empty:
-        for _, row in df_valid.iterrows():
-            produto_pedido = str(row.iloc[7])  # H = Produto
-            quantidade_enviada = row.iloc[6]   # G = Quantidade
+    # --- Função para atualizar o estoque automaticamente ---
+    def atualizar_estoque():
+        if not df_valid.empty and not df_estoque_atual.empty:
+            # Garantir que a coluna Quantidade do pedido é numérica
+            df_valid["quantidade_enviada"] = pd.to_numeric(df_valid.iloc[:,6], errors="coerce").fillna(0)
 
-            if produto_pedido in df_estoque_atual["Produto"].values:
-                df_estoque_atual.loc[df_estoque_atual["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
+            for _, row in df_valid.iterrows():
+                produto_pedido = str(row.iloc[7]).strip()  # Produto
+                quantidade_enviada = row["quantidade_enviada"]
 
-        # Evitar valores negativos
-        df_estoque_atual["Quantidade"] = df_estoque_atual["Quantidade"].clip(lower=0)
+                if produto_pedido in df_estoque_atual["Produto"].values:
+                    df_estoque_atual.loc[df_estoque_atual["Produto"] == produto_pedido, "Quantidade"] -= quantidade_enviada
 
-        # Atualizar session_state
-        st.session_state.df_estoque_atual = df_estoque_atual
+            # Evitar valores negativos
+            df_estoque_atual["Quantidade"] = df_estoque_atual["Quantidade"].clip(lower=0)
+
+            # Atualizar session_state
+            st.session_state.df_estoque_atual = df_estoque_atual
+
+    # --- Botões de ação ---
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 Atualizar Estoque"):
+            atualizar_estoque()
+            st.success("✅ Estoque atualizado com base nos pedidos.")
+    with col2:
+        if st.button("♻️ Resetar Estoque"):
+            st.session_state.df_estoque_atual = df_estoque.copy()
+            st.success("✅ Estoque resetado para os valores originais.")
+
+    df_estoque_atual = st.session_state.df_estoque_atual.copy()
 
     # --- Alerta de estoque baixo ---
     estoque_baixo = df_estoque_atual[df_estoque_atual["Quantidade"] <= df_estoque_atual["Estoque Mínimo"]]
@@ -208,6 +226,7 @@ with tab4:
             title="Quantidade em Estoque vs Estoque Mínimo"
         )
         st.plotly_chart(fig_estoque, use_container_width=True)
+
 
 
 
