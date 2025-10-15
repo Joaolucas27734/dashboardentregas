@@ -144,7 +144,7 @@ with tab3:
     ]).reset_index()
     st.table(prob_estado.sort_values("Prob ≤3 dias", ascending=False))
 
-# ==================== TAB 4 - Controle de Estoque via Planilha ====================
+# ==================== TAB 4 - Controle de Estoque via Planilha (sem SKU) ====================
 with tab4:
     st.subheader("📦 Controle de Estoque – Planilha")
 
@@ -157,7 +157,7 @@ with tab4:
     if not df_valid.empty:
         df_estoque = df_estoque.copy()
         for _, row in df_valid.iterrows():
-            produto_pedido = str(row.iloc[5])  # Nome do produto ou SKU
+            produto_pedido = str(row.iloc[5])  # Nome do produto
             quantidade_enviada = row.iloc[6]   # Quantidade enviada
 
             if produto_pedido in df_estoque["Produto"].values:
@@ -170,22 +170,20 @@ with tab4:
     with st.expander("➕ Adicionar / Atualizar Produto", expanded=False):
         with st.form("form_estoque", clear_on_submit=True):
             produto = st.text_input("Produto")
-            sku = st.text_input("SKU")
             quantidade = st.number_input("Quantidade", min_value=0, value=0)
             estoque_minimo = st.number_input("Estoque Mínimo", min_value=0, value=0)
             submit = st.form_submit_button("Adicionar / Atualizar")
 
             if submit:
-                if produto.strip() == "" or sku.strip() == "":
-                    st.error("Preencha Produto e SKU!")
+                if produto.strip() == "":
+                    st.error("Preencha o nome do Produto!")
                 else:
-                    if sku in df_estoque["SKU"].values:
-                        df_estoque.loc[df_estoque["SKU"] == sku, ["Produto", "Quantidade", "Estoque Mínimo"]] = [produto, quantidade, estoque_minimo]
+                    if produto in df_estoque["Produto"].values:
+                        df_estoque.loc[df_estoque["Produto"] == produto, ["Quantidade", "Estoque Mínimo"]] = [quantidade, estoque_minimo]
                         st.success(f"Produto {produto} atualizado!")
                     else:
                         df_estoque = pd.concat([df_estoque, pd.DataFrame([{
                             "Produto": produto,
-                            "SKU": sku,
                             "Quantidade": quantidade,
                             "Estoque Mínimo": estoque_minimo
                         }])], ignore_index=True)
@@ -194,10 +192,10 @@ with tab4:
     # --- Expander para excluir produto ---
     if not df_estoque.empty:
         with st.expander("❌ Excluir Produto", expanded=False):
-            sku_excluir = st.selectbox("Selecione o SKU do produto para excluir", df_estoque["SKU"])
+            produto_excluir = st.selectbox("Selecione o produto para excluir", df_estoque["Produto"])
             if st.button("Excluir Produto"):
-                df_estoque = df_estoque[df_estoque["SKU"] != sku_excluir].reset_index(drop=True)
-                st.success(f"Produto com SKU {sku_excluir} excluído!")
+                df_estoque = df_estoque[df_estoque["Produto"] != produto_excluir].reset_index(drop=True)
+                st.success(f"Produto {produto_excluir} excluído!")
 
     # --- Alerta de estoque baixo ---
     estoque_baixo = df_estoque[df_estoque["Quantidade"] <= df_estoque["Estoque Mínimo"]]
