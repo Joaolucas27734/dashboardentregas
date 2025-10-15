@@ -1,40 +1,66 @@
 import streamlit as st
 import pandas as pd
 
-st.set_page_config(page_title="Probabilidade de Entrega", layout="wide")
+st.set_page_config(page_title="Dashboard de Entregas", layout="wide")
 
-st.title("📦 Dashboard de Entregas por Região")
+st.title("📦 Probabilidade de Entrega por Estado")
 
-# Leitura da planilha (pode ser link bruto do GitHub)
-url = "https://raw.githubusercontent.com/SEU_USUARIO/SEU_REPO/main/data/pedidos.csv"
-df = pd.read_csv(url, parse_dates=["data_envio", "data_entrega"])
+# → Link da planilha no Google Sheets (modo export CSV)
+sheet_id = "1dYVZjzCtDBaJ6QdM81WP2k51QodDGZHzKEhzKHSp7v8"
+url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv"
 
-# Calcular dias de entrega
+# Lê os dados
+df = pd.read_csv(url, parse_dates=["Data Envio", "Data Entrega"])
+
+# Ajustar nomes das colunas para facilitar
+# (depende exatamente como suas colunas estão nomeadas)
+df = df.rename(columns={
+    "Data Envio": "data_envio",
+    "Data Entrega": "data_entrega",
+    "Pedido": "pedido"
+})
+# Se tiver coluna de estado/região, renomeie: ex:
+# df = df.rename(columns={"Estado": "estado"})
+
+# Calcula dias de entrega
 df["dias_entrega"] = (df["data_entrega"] - df["data_envio"]).dt.days
 
-# Filtrar regiões únicas
-regioes = sorted(df["estado"].unique())
-regiao_sel = st.selectbox("Filtrar por Estado/Região", ["Todos"] + regioes)
+# Se houver coluna de estado/região
+if "estado" in df.columns:
+    regioes = sorted(df["estado"].dropna().unique())
+else:
+    # Se não tiver, criar dummy “Todos”
+    df["estado"] = "Todos"
+    regioes = ["Todos"]
+
+regiao_sel = st.selectbox("Selecionar Estado / Região", ["Todos"] + regioes)
 
 if regiao_sel != "Todos":
-    df = df[df["estado"] == regiao_sel]
+    df_filtrado = df[df["estado"] == regiao_sel]
+else:
+    df_filtrado = df
 
-# Métricas principais
-total = len(df)
-media = df["dias_entrega"].mean()
-mediana = df["dias_entrega"].median()
-ate3 = (df["dias_entrega"] <= 3).sum() / total * 100
-atrasos = (df["dias_entrega"] > 5).sum() / total * 100
+# Filtra valores válidos
+df_valid = df_filtrado.dropna(subset=["dias_entrega"])
+total = len(df_valid)
 
-st.metric("Tempo médio de entrega (dias)", f"{media:.1f}")
-st.metric("Mediana", f"{mediana:.0f}")
-st.metric("% em até 3 dias", f"{ate3:.1f}%")
-st.metric("% atrasados (+5 dias)", f"{atrasos:.1f}%")
+# Cálculos principais
+media = df_valid["dias_entrega"].mean() if total > 0 else None
+mediana = df_valid["dias_entrega"].median() if total > 0 else None
+pct_ate3 = (df_valid["dias_entrega"] <= 3).sum() / total * 100 if total > 0 else None
+pct_atraso5 = (df_valid["dias_entrega"] > 5).sum() / total * 100 if total > 0 else None
 
-# Tabela resumo por estado
-resumo = df.groupby("estado")["dias_entrega"].agg(["count","mean","median"])
-st.subheader("📊 Resumo por Região")
+# Exibição
+st.metric("Tempo médio (dias)", f"{media:.1f}" if media is not None else "—")
+st.metric("Mediana (dias)", f"{mediana:.0f}" if mediana is not None else "—")
+st.metric("% em até 3 dias", f"{pct_ate3:.1f}%" if pct_ate3 is not None else "—")
+st.metric("% atrasos (+5 dias)", f"{pct_atraso5:.1f}%" if pct_atraso5 is not None else "—")
+
+st.subheader("Resumo por Estado")
+resumo = df.groupby("estado")["dias_entrega"].agg(["count", "mean", "median"])
 st.dataframe(resumo)
 
-# Histograma
-st.bar_chart(df["dias_entrega"].value_counts().sort_index())
+st.subheader("Distribuição de dias de entrega")
+# histograma de frequência
+freq = df_valid["dias_entrega"].value_counts().sort_index()
+st.bar_chart(freq)
