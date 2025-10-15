@@ -23,8 +23,15 @@ df["cidade"] = df.iloc[:,4].astype(str).str.title()  # coluna E
 # --- Status de entrega ---
 df["Status"] = df["data_entrega"].apply(lambda x: "Entregue" if pd.notna(x) else "Não entregue")
 
+# --- Filtro por data ---
+st.sidebar.subheader("📅 Filtrar por Data de Envio")
+data_min = df["data_envio"].min()
+data_max = df["data_envio"].max()
+data_inicio, data_fim = st.sidebar.date_input("Selecione o período:", [data_min, data_max])
+df_filtrado = df[(df["data_envio"] >= pd.to_datetime(data_inicio)) & (df["data_envio"] <= pd.to_datetime(data_fim))]
+
 # --- Dados válidos ---
-df_valid = df.dropna(subset=["dias_entrega"])
+df_valid = df_filtrado.dropna(subset=["dias_entrega"])
 total = len(df_valid)
 media = df_valid["dias_entrega"].mean() if total>0 else 0
 mediana = df_valid["dias_entrega"].median() if total>0 else 0
@@ -33,8 +40,8 @@ pct_atraso5 = (df_valid["dias_entrega"]>5).sum()/total*100 if total>0 else 0
 desvio = df_valid["dias_entrega"].std() if total>0 else 0
 
 # --- Contagem entregues/não entregues ---
-qtd_entregue = (df["Status"]=="Entregue").sum()
-qtd_nao_entregue = (df["Status"]=="Não entregue").sum()
+qtd_entregue = (df_filtrado["Status"]=="Entregue").sum()
+qtd_nao_entregue = (df_filtrado["Status"]=="Não entregue").sum()
 
 # --- Tabs ---
 tab1, tab2 = st.tabs(["📊 Dashboard", "📝 Resumo de Pedidos"])
@@ -132,7 +139,7 @@ with tab1:
 with tab2:
     # --- Resumo detalhado dos pedidos ---
     st.subheader("📝 Tabela de Pedidos")
-    tabela_resumo = df[[
+    tabela_resumo = df_filtrado[[
         df.columns[0],  # Número do pedido
         "data_envio",
         "data_entrega",
